@@ -25,7 +25,7 @@ if uploaded_file is not None:
         with st.spinner("Running predictions..."):
 
             # Load the trained model
-            model = YOLO("D:\\acadamics\\5th Year\\MTP\\final_model\\crack_prediction\\best.pt")  # Replace with your trained model path
+            model = YOLO("best.pt")  # Replace with your trained model path
 
             # Setup for output video
             cap = cv2.VideoCapture(input_video_path)
