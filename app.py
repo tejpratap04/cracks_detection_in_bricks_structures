@@ -21,9 +21,6 @@ def get_max_width(mask):
 
     for y, x in coords[::5]:  # Sample every 5th pixel for performance
         if 1 < y < mask.shape[0] - 2 and 1 < x < mask.shape[1] - 2:
-            #dy = int(skeleton[y+1, x] - skeleton[y-1, x])
-            #dx = int(skeleton[y, x+1] - skeleton[y, x-1])
-
             dy = int(int(skeleton[y+1, x]) - int(skeleton[y-1, x]))
             dx = int(int(skeleton[y, x+1]) - int(skeleton[y, x-1]))
 
@@ -52,7 +49,12 @@ def get_max_width(mask):
 
     return max_width
 
+# Upload video
 uploaded_file = st.file_uploader("Upload a video file (.mp4)", type=["mp4"])
+
+# Add inputs for real-world dimensions
+frame_width_mm = st.number_input("Enter frame width in mm:", min_value=1.0, value=200.0)
+frame_height_mm = st.number_input("Enter frame height in mm:", min_value=1.0, value=100.0)
 
 if uploaded_file is not None:
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
@@ -68,6 +70,11 @@ if uploaded_file is not None:
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS)
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+            # Calculate scale factors
+            scale_x = frame_width_mm / width
+            scale_y = frame_height_mm / height
+            scale_avg = (scale_x + scale_y) / 2  # average scale for length approximation
 
             output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
@@ -94,48 +101,59 @@ if uploaded_file is not None:
                             length_px = max(w, h)
                             min_width_px = min(w, h)
 
-                            # Compute max width and skeleton length
                             max_width_px = get_max_width(binary_mask)
                             skeleton = skeletonize(binary_mask > 0)
                             crack_length_px = np.count_nonzero(skeleton)
 
-                            # Draw red box
-                            #box = cv2.boxPoints(rect)
-                            #box = box.astype(np.int32)
-                            #cv2.drawContours(annotated_frame, [box], 0, (0, 0, 255), 2)
+                            # Convert to mm
+                            crack_length_mm = crack_length_px * scale_avg
+                            max_width_mm = max_width_px * scale_avg
+                            length_mm = length_px * scale_avg
+                            width_mm = min_width_px * scale_avg
 
-                            # Prepare two lines of text
+                            # Prepare text lines
                             text1 = f"Crack L:{crack_length_px:.1f}px, Max_W:{max_width_px:.1f}px"
                             text2 = f" Box  L:{length_px:.1f}px, W:{min_width_px:.1f}px"
+                            text3 = f"Crack L:{crack_length_mm:.1f}mm, Max_W:{max_width_mm:.1f}mm"
+                            text4 = f" Box  L:{length_mm:.1f}mm, W:{width_mm:.1f}mm"
 
                             font = cv2.FONT_HERSHEY_SIMPLEX
                             font_scale = 1.0
                             thickness = 2
 
-                            (text_width1, text_height1), baseline1 = cv2.getTextSize(text1, font, font_scale, thickness)
-                            (text_width2, text_height2), baseline2 = cv2.getTextSize(text2, font, font_scale, thickness)
-                            total_height = text_height1 + text_height2 + baseline1 + baseline2 + 10
+                            # Calculate total height of 4 lines
+                            (tw1, th1), bl1 = cv2.getTextSize(text1, font, font_scale, thickness)
+                            (tw2, th2), bl2 = cv2.getTextSize(text2, font, font_scale, thickness)
+                            (tw3, th3), bl3 = cv2.getTextSize(text3, font, font_scale, thickness)
+                            (tw4, th4), bl4 = cv2.getTextSize(text4, font, font_scale, thickness)
+
+                            total_height = th1 + th2 + th3 + th4 + bl1 + bl2 + bl3 + bl4 + 15
+                            text_width = max(tw1, tw2, tw3, tw4)
 
                             top_left = (int(x), int(y) - total_height)
-                            bottom_right = (int(x) + max(text_width1, text_width2), int(y))
+                            bottom_right = (int(x) + text_width, int(y))
 
-                            # Draw background box for better readability
+                            # Draw background box
                             cv2.rectangle(annotated_frame, top_left, bottom_right, (255, 255, 255), -1)
 
-                            # Draw both lines
-                            cv2.putText(annotated_frame, text1, (int(x), int(y) - text_height2 - baseline2 - 5), font, font_scale, (0, 255, 0), thickness)
-                            cv2.putText(annotated_frame, text2, (int(x), int(y) - baseline2), font, font_scale, (0, 255, 0), thickness)
+                            # Draw texts
+                            y_pos = int(y) - total_height + th1
+                            cv2.putText(annotated_frame, text1, (int(x), y_pos), font, font_scale, (0, 255, 0), thickness)
+                            y_pos += th2 + bl2
+                            cv2.putText(annotated_frame, text2, (int(x), y_pos), font, font_scale, (0, 255, 0), thickness)
+                            y_pos += th3 + bl3
+                            cv2.putText(annotated_frame, text3, (int(x), y_pos), font, font_scale, (0, 255, 0), thickness)
+                            y_pos += th4 + bl4
+                            cv2.putText(annotated_frame, text4, (int(x), y_pos), font, font_scale, (0, 255, 0), thickness)
 
                 out.write(annotated_frame)
                 frame_count += 1
-
 
             cap.release()
             out.release()
 
         st.success("✅ Prediction Complete!")
         st.success(f"Total frames processed: {frame_count}")
-
         st.video(output_path)
 
         with open(output_path, "rb") as f:
