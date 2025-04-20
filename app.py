@@ -9,7 +9,7 @@ from skimage.draw import line
 import math
 
 # Set page title
-st.title("🧱 Crack Detection in Brick Structures (YOLOv8-Seg)")
+st.title("🧱 Crack Detection in Brick Structures")
 
 with st.spinner("Model loading..."):
     model = YOLO("best.pt")
