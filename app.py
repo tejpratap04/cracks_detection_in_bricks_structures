@@ -12,7 +12,7 @@ import math
 st.title("🧱 Crack Detection in Brick Structures")
 
 with st.spinner("Model loading..."):
-    model = YOLO("best.pt")
+    model = YOLO("best_1.pt")
 
 def get_max_width(mask):
     skeleton = skeletonize(mask > 0)
